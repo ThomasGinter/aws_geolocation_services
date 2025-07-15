@@ -1,0 +1,24 @@
+# Node.js/Bun
+node_modules/
+.bun/
+bun.lockb
+
+# Build outputs
+dist/
+build/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Cline-specific
+.clinerules/memory-bank/
+
+# OS-specific
+.DS_Store
+Thumbs.db
