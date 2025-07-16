@@ -49,24 +49,38 @@ function App() {
     }
   };
 
-  const handleSuggestionSelect = async (selectedText: string) => {
-    setStreet(selectedText);
+  const handleSuggestionSelect = async (suggestion: {
+    text: string;
+    placeId: string;
+  }) => {
     try {
-      const response = await fetch("/geocode", {
+      const response = await fetch("/getplace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: selectedText }),
+        body: JSON.stringify({ placeId: suggestion.placeId }),
       });
       if (response.ok) {
         const data = await response.json();
+        const address = data.address || {};
+        let streetAddress =
+          `${address.AddressNumber || ""} ${address.Street || ""}`.trim();
+
+        // If address object is empty or doesn't have street info, extract from label
+        if (!streetAddress && data.label) {
+          const labelParts = data.label.split(",");
+          streetAddress = labelParts[0]?.trim() || "";
+        }
+        setStreet(streetAddress);
         setCity(data.municipality || "");
         setState(data.region || "");
         setZip(data.postalCode || "");
       } else {
-        console.error("Failed to geocode suggestion");
+        console.error("Failed to fetch place details");
+        setStreet(suggestion.text);
       }
     } catch (err) {
       console.error("Error in suggestion select:", err);
+      setStreet(suggestion.text);
     }
     setSuggestions([]);
   };
@@ -118,7 +132,7 @@ function App() {
                 <li
                   key={index}
                   className="p-2 hover:bg-gray-100 cursor-pointer"
-                  onClick={() => handleSuggestionSelect(sug.text)}
+                  onClick={() => handleSuggestionSelect(sug)}
                 >
                   {sug.text}
                 </li>

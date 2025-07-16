@@ -105,5 +105,50 @@ Bun.serve({
         }
       },
     },
+    "/getplace": {
+      POST: async (req) => {
+        try {
+          const body = (await req.json()) as { placeId: string };
+          const placeId = body.placeId;
+          if (!placeId || typeof placeId !== "string") {
+            return new Response(
+              JSON.stringify({ error: "Valid placeId is required" }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          const result = await geocoder.getPlace(placeId);
+
+          return new Response(JSON.stringify(result), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          console.error(error);
+          if (
+            error instanceof Error &&
+            error.message === "No place found for the given ID"
+          ) {
+            return new Response(
+              JSON.stringify({ error: "No place found for the given ID" }),
+              {
+                status: 404,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Internal server error" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+      },
+    },
   },
 });

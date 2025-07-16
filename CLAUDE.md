@@ -23,6 +23,8 @@ Default to using Bun instead of Node.js.
 - Prefer `Bun.file` over `node:fs`'s readFile/writeFile
 - Bun.$`ls` instead of execa.
 - Prefer `SearchPlaceIndexForSuggestionsCommand` for address auto-complete from `@aws-sdk/client-location`.
+- When a suggestion is selected, use `GetPlaceCommand` from `@aws-sdk/client-location` to fetch the full place details using the PlaceId from the suggestion.
+- When populating address fields, set the "Street Address" field to only the street address part (e.g., `${Address.AddressNumber} ${Address.Street}` from the Place.Address object). Populate city, state, and zip code in their respective fields. Avoid including the full address in the "Street Address" field.
 
 ## Testing
 

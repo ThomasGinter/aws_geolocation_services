@@ -2,6 +2,7 @@ import {
   LocationClient,
   SearchPlaceIndexForSuggestionsCommand,
   SearchPlaceIndexForTextCommand,
+  GetPlaceCommand,
 } from "@aws-sdk/client-location";
 
 export class AwsGeocoder {
@@ -114,6 +115,43 @@ export class AwsGeocoder {
       return [];
     } catch (error) {
       console.error("Error getting suggestions:", error);
+      throw error;
+    }
+  }
+  public async getPlace(placeId: string): Promise<object> {
+    try {
+      const { stateMap, countyMap } = await this.fipsPromise;
+      const params = {
+        IndexName: this.indexName,
+        PlaceId: placeId,
+      };
+      const command = new GetPlaceCommand(params);
+      const response = await this.client.send(command);
+      if (response.Place) {
+        const place = response.Place;
+        const state = place.Region?.toUpperCase() ?? "";
+        const county =
+          place.SubRegion?.toUpperCase().replace(" COUNTY", "") ?? "";
+        const stateFips = stateMap[state] ?? "N/A";
+        const countyFips =
+          (stateFips !== "N/A" && countyMap[stateFips]?.[county]) ?? "N/A";
+        return {
+          label: place.Label ?? "N/A",
+          address: place.Address ?? {},
+          country: place.Country ?? "N/A",
+          region: place.Region ?? "N/A",
+          subRegion: place.SubRegion ?? "N/A",
+          municipality: place.Municipality ?? "N/A",
+          neighborhood: place.Neighborhood ?? "N/A",
+          postalCode: place.PostalCode ?? "N/A",
+          coordinates: place.Geometry?.Point ?? "N/A",
+          stateFips: stateFips,
+          countyFips: countyFips,
+        };
+      }
+      throw new Error("No place found for the given ID");
+    } catch (error) {
+      console.error("Error fetching place:", error);
       throw error;
     }
   }
