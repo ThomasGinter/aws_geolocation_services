@@ -22,6 +22,7 @@ Default to using Bun instead of Node.js.
 - `WebSocket` is built-in. Don't use `ws`.
 - Prefer `Bun.file` over `node:fs`'s readFile/writeFile
 - Bun.$`ls` instead of execa.
+- Prefer `SearchPlaceIndexForSuggestionsCommand` for address auto-complete from `@aws-sdk/client-location`.
 
 ## Testing
 

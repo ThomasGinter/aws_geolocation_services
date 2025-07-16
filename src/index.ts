@@ -1,5 +1,5 @@
-import { AwsGeocoder } from "./services/awsclientlocation";
-import index from "./frontend/index.html";
+import { AwsGeocoder } from "./server/services/awsgeocoder";
+import index from "./client/index.html";
 
 const geocoder = new AwsGeocoder();
 
@@ -16,7 +16,7 @@ Bun.serve({
     "/geocode": {
       POST: async (req) => {
         try {
-          const body = await req.json();
+          const body = (await req.json()) as { address: string };
           const address = body.address;
           if (!address || typeof address !== "string") {
             return new Response(
@@ -48,6 +48,53 @@ Bun.serve({
               },
             );
           }
+          return new Response(
+            JSON.stringify({ error: "Internal server error" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+      },
+    },
+    "/api/suggestions": {
+      GET: async (req) => {
+        try {
+          const url = new URL(req.url);
+          const partialAddress = url.searchParams.get("partialAddress");
+          if (!partialAddress) {
+            return new Response(
+              JSON.stringify({ error: "partialAddress is required" }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
+          const maxResultsStr = url.searchParams.get("maxResults");
+          const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : 5;
+          const biasLonStr = url.searchParams.get("biasLon");
+          const biasLatStr = url.searchParams.get("biasLat");
+          let biasPosition: [number, number] | undefined;
+          if (biasLonStr && biasLatStr) {
+            const biasLon = parseFloat(biasLonStr);
+            const biasLat = parseFloat(biasLatStr);
+            if (!isNaN(biasLon) && !isNaN(biasLat)) {
+              biasPosition = [biasLon, biasLat];
+            }
+          }
+          const suggestions = await geocoder.getSuggestions(
+            partialAddress,
+            maxResults,
+            biasPosition,
+          );
+          return new Response(JSON.stringify({ suggestions }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          console.error(error);
           return new Response(
             JSON.stringify({ error: "Internal server error" }),
             {

@@ -1,5 +1,6 @@
 import {
   LocationClient,
+  SearchPlaceIndexForSuggestionsCommand,
   SearchPlaceIndexForTextCommand,
 } from "@aws-sdk/client-location";
 
@@ -9,6 +10,7 @@ export class AwsGeocoder {
     stateMap: Record<string, string>;
     countyMap: Record<string, Record<string, string>>;
   }>;
+  private indexName: string;
 
   constructor(
     region: string = "us-west-2",
@@ -84,6 +86,34 @@ export class AwsGeocoder {
       throw new Error("No results found for the address");
     } catch (error) {
       console.error("Error geocoding address:", error);
+      throw error;
+    }
+  }
+  public async getSuggestions(
+    partialAddress: string,
+    maxResults: number = 5,
+    biasPosition?: [number, number],
+  ): Promise<{ text: string; placeId: string }[]> {
+    try {
+      const params: any = {
+        IndexName: this.indexName,
+        Text: partialAddress,
+        MaxResults: maxResults,
+      };
+      if (biasPosition) {
+        params.BiasPosition = biasPosition;
+      }
+      const command = new SearchPlaceIndexForSuggestionsCommand(params);
+      const response = await this.client.send(command);
+      if (response.Results && response.Results.length > 0) {
+        return response.Results.map((result) => ({
+          text: result.Text ?? "",
+          placeId: result.PlaceId ?? "",
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error("Error getting suggestions:", error);
       throw error;
     }
   }

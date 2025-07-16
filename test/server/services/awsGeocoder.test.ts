@@ -1,5 +1,5 @@
 import { test, expect, mock } from "bun:test";
-import { AwsGeocoder } from "../src/services/awsclientlocation";
+import { AwsGeocoder } from "../../../src/server/services/awsgeocoder";
 import { LocationClient } from "@aws-sdk/client-location";
 
 test("loadFipsData loads and parses state and county maps correctly", async () => {
@@ -92,7 +92,9 @@ test("geocodeAddress throws error when no results found", async () => {
   const originalSend = LocationClient.prototype.send;
   LocationClient.prototype.send = mockSend;
 
-  await expect(geocoder.geocodeAddress("Invalid Address")).rejects.toThrow("No results found for the address");
+  await expect(geocoder.geocodeAddress("Invalid Address")).rejects.toThrow(
+    "No results found for the address",
+  );
 
   LocationClient.prototype.send = originalSend;
 });
@@ -100,12 +102,56 @@ test("geocodeAddress throws error when no results found", async () => {
 test("geocodeAddress throws error on API failure", async () => {
   const geocoder = new AwsGeocoder();
 
-  const mockSend = mock(async () => { throw new Error("API Error"); });
+  const mockSend = mock(async () => {
+    throw new Error("API Error");
+  });
 
   const originalSend = LocationClient.prototype.send;
   LocationClient.prototype.send = mockSend;
 
-  await expect(geocoder.geocodeAddress("Test Address")).rejects.toThrow("API Error");
+  await expect(geocoder.geocodeAddress("Test Address")).rejects.toThrow(
+    "API Error",
+  );
 
+  LocationClient.prototype.send = originalSend;
+});
+
+test("getSuggestions returns correct suggestions", async () => {
+  const geocoder = new AwsGeocoder();
+
+  const mockSend = mock(async () => ({
+    Results: [
+      { Text: "Suggestion 1", PlaceId: "id1" },
+      { Text: "Suggestion 2", PlaceId: "id2" },
+    ],
+  }));
+
+  const originalSend = LocationClient.prototype.send;
+  LocationClient.prototype.send = mockSend;
+
+  const suggestions = await geocoder.getSuggestions("partial");
+
+  expect(suggestions).toEqual([
+    { text: "Suggestion 1", placeId: "id1" },
+    { text: "Suggestion 2", placeId: "id2" },
+  ]);
+
+  expect(mockSend).toHaveBeenCalledTimes(1);
+  LocationClient.prototype.send = originalSend;
+});
+
+test("getSuggestions returns empty array when no results", async () => {
+  const geocoder = new AwsGeocoder();
+
+  const mockSend = mock(async () => ({ Results: [] }));
+
+  const originalSend = LocationClient.prototype.send;
+  LocationClient.prototype.send = mockSend;
+
+  const suggestions = await geocoder.getSuggestions("invalid");
+
+  expect(suggestions).toEqual([]);
+
+  expect(mockSend).toHaveBeenCalledTimes(1);
   LocationClient.prototype.send = originalSend;
 });

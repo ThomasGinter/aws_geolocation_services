@@ -38,8 +38,8 @@ This will return a JSON response with the geocoded details.
 ## Project Structure
 
 - `src/index.ts`: Server entry point using `Bun.serve()`.
-- `src/services/awsclientlocation.ts`: `AwsGeocoder` class encapsulating AWS Location Service logic.
-- `src/frontend/`: React frontend files (index.html, App.tsx).
+- `src/server/services/awsgeocoder.ts`: `AwsGeocoder` class encapsulating AWS Location Service logic.
+- `src/client/`: React frontend files (index.html, App.tsx).
 - `test/`: Unit tests for the geocoder and server.
 - `data/`: JSON files for US state and county FIPS codes.
 
@@ -48,6 +48,24 @@ This will return a JSON response with the geocoded details.
 - **Backend**: The server exposes a RESTful API at `/geocode` (POST) which uses the `AwsGeocoder` class to interact with AWS Location Service and enrich results with FIPS codes.
 - **Frontend**: A simple React app served at `/` allowing users to input addresses and display results.
 - **Data**: FIPS mappings are loaded from JSON files in `data/` and used to augment geocoding responses.
+
+## Address Auto-Completion
+
+The project supports address auto-completion using Amazon Location Service's suggestion API.
+
+- **API Endpoint**: GET `/api/suggestions` with query parameters:
+  - `partialAddress`: The partial address text to search for (required).
+  - `maxResults`: Maximum number of suggestions to return (default: 5).
+  - `biasLon` and `biasLat`: Optional bias position coordinates to prioritize results near a location.
+
+  Example:
+  ```sh
+  curl "http://localhost:3000/api/suggestions?partialAddress=1600%20Penn"
+  ```
+
+  Returns JSON: `{ "suggestions": [{ "text": "...", "placeId": "..." }, ...] }`
+
+- **UI Usage**: In the frontend form, start typing in the "Street Address" field to see a dropdown of suggestions. Selecting a suggestion will auto-populate the city, state, and zip code fields based on geocoding the selected address.
 
 ## Testing
 

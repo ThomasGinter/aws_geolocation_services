@@ -1,11 +1,14 @@
 import { test, expect, mock } from "bun:test";
-import { AwsGeocoder } from "../src/services/awsclientlocation";
+import { AwsGeocoder } from "../../src/server/services/awsgeocoder";
 
 // Sample handler simulation based on src/index.ts logic
 // Since the actual handler is not exported, we recreate the logic here for unit testing
-async function simulateGeocodeHandler(req: Request, geocoder: AwsGeocoder): Promise<Response> {
+async function simulateGeocodeHandler(
+  req: Request,
+  geocoder: AwsGeocoder,
+): Promise<Response> {
   try {
-    const body = await req.json();
+    const body = (await req.json()) as { address?: string };
     const address = body.address;
     if (!address || typeof address !== "string") {
       return new Response(
@@ -37,13 +40,56 @@ async function simulateGeocodeHandler(req: Request, geocoder: AwsGeocoder): Prom
         },
       );
     }
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      },
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+async function simulateSuggestionsHandler(
+  req: Request,
+  geocoder: AwsGeocoder,
+): Promise<Response> {
+  try {
+    const url = new URL(req.url);
+    const partialAddress = url.searchParams.get("partialAddress");
+    if (!partialAddress) {
+      return new Response(
+        JSON.stringify({ error: "partialAddress is required" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    const maxResultsStr = url.searchParams.get("maxResults");
+    const maxResults = maxResultsStr ? parseInt(maxResultsStr, 10) : 5;
+    const biasLonStr = url.searchParams.get("biasLon");
+    const biasLatStr = url.searchParams.get("biasLat");
+    let biasPosition: [number, number] | undefined;
+    if (biasLonStr && biasLatStr) {
+      const biasLon = parseFloat(biasLonStr);
+      const biasLat = parseFloat(biasLatStr);
+      if (!isNaN(biasLon) && !isNaN(biasLat)) {
+        biasPosition = [biasLon, biasLat];
+      }
+    }
+    const suggestions = await geocoder.getSuggestions(
+      partialAddress,
+      maxResults,
+      biasPosition,
     );
+    return new Response(JSON.stringify({ suggestions }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error(error);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
 
@@ -122,7 +168,9 @@ test("POST /geocode with no results throws 404", async () => {
   const response = await simulateGeocodeHandler(mockReq, geocoder);
 
   expect(response.status).toBe(404);
-  expect(await response.json()).toEqual({ error: "No results found for the address" });
+  expect(await response.json()).toEqual({
+    error: "No results found for the address",
+  });
   expect(mockGeocode).toHaveBeenCalledTimes(1);
 });
 
@@ -144,4 +192,32 @@ test("POST /geocode with server error returns 500", async () => {
   expect(response.status).toBe(500);
   expect(await response.json()).toEqual({ error: "Internal server error" });
   expect(mockGeocode).toHaveBeenCalledTimes(1);
+});
+
+test("GET /api/suggestions with valid partialAddress returns 200 and suggestions", async () => {
+  const geocoder = new AwsGeocoder();
+  const mockGetSuggestions = mock(async () => [
+    { text: "Suggestion 1", placeId: "id1" },
+    { text: "Suggestion 2", placeId: "id2" },
+  ]);
+  geocoder.getSuggestions = mockGetSuggestions;
+
+  const mockReq = new Request(
+    "http://localhost:3000/api/suggestions?partialAddress=partial",
+    {
+      method: "GET",
+    },
+  );
+
+  const response = await simulateSuggestionsHandler(mockReq, geocoder);
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    suggestions: [
+      { text: "Suggestion 1", placeId: "id1" },
+      { text: "Suggestion 2", placeId: "id2" },
+    ],
+  });
+  expect(mockGetSuggestions).toHaveBeenCalledWith("partial", 5, undefined);
+  expect(mockGetSuggestions).toHaveBeenCalledTimes(1);
 });
