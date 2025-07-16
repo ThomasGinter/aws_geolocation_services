@@ -1,5 +1,6 @@
 import { vi, describe, it, expect } from 'vitest';
 import { LocationClient, SearchPlaceIndexForTextCommand } from '@aws-sdk/client-location';
+import * as Bun from 'bun'; // Import Bun for mocking
 
 // Mock the LocationClient
 vi.mock('@aws-sdk/client-location', () => {
@@ -32,6 +33,18 @@ describe('geocodeAddress', () => {
       ],
     });
 
+    // Mock Bun.file for FIPS data
+    const mockBunFile = vi.spyOn(Bun, 'file').mockImplementation((pathOrFd: string | number) => {
+      if (typeof pathOrFd === 'number') return { json: vi.fn().mockResolvedValue([]) } as any;
+      const path = pathOrFd;
+      if (path === 'data/us-state-fips.json') {
+        return { json: vi.fn().mockResolvedValue([['State', 'FIPS'], ['DISTRICT OF COLUMBIA', '11']]) } as any;
+      } else if (path === 'data/us-county-fips.json') {
+        return { json: vi.fn().mockResolvedValue([['County, State', 'State FIPS', 'County FIPS'], ['District of Columbia, District of Columbia', '11', '001']]) } as any;
+      }
+      return { json: vi.fn().mockResolvedValue([]) } as any;
+    });
+
     (LocationClient as any).mockImplementation(() => ({
       send: mockSend,
     }));
@@ -45,9 +58,12 @@ describe('geocodeAddress', () => {
 
     expect(mockSend).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith('Resolved Address:', '1600 Pennsylvania Ave NW, Washington, DC 20500, USA');
+    expect(consoleLogSpy).toHaveBeenCalledWith('State FIPS:', '11');
+    expect(consoleLogSpy).toHaveBeenCalledWith('County FIPS:', '001');
     // Add more expectations for other logs as needed
 
     consoleLogSpy.mockRestore();
+    mockBunFile.mockRestore();
   });
 
   it('should handle no results', async () => {

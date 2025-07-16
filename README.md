@@ -25,12 +25,29 @@ bun run src/index.ts "1600 Pennsylvania Ave NW, Washington, DC"
 
 This will geocode the provided address and output resolved details along with the full AWS response.
 
+## FIPS Data
+
+The `data` folder contains JSON files for mapping US states and counties to their FIPS codes:
+- `us-state-fips.json`: List of US states with their FIPS codes.
+- `us-county-fips.json`: List of US counties with their state FIPS and county FIPS codes.
+
+These files are used to lookup and add State FIPS and County FIPS to the geocoding output based on the Region (state) and SubRegion (county) from the AWS response.
+
 ## Sample Output
 
-Below is a sample JSON response from the AWS Location Service during testing with the address "1600 Pennsylvania Ave NW, Washington, DC":
+Running the CLI with the address "1600 Pennsylvania Ave NW, Washington, DC" produces output like:
 
-```json
-{
+Resolved Address: 1600 Pennsylvania Ave NW, Washington, DC, 20500, USA
+Country: USA
+Region (State): District of Columbia
+SubRegion (County): District of Columbia
+Municipality: Washington
+Neighborhood: N/A
+Postal Code: 20500
+Coordinates: [ -77.036546998209, 38.897675107651 ]
+State FIPS: 11
+County FIPS: 001
+Full Response: {
   "$metadata": {
     "httpStatusCode": 200,
     "requestId": "fe27e41b-4742-4023-860b-d78054ddc93c",
@@ -75,6 +92,5 @@ Below is a sample JSON response from the AWS Location Service during testing wit
     "Text": "1600 Pennsylvania Ave NW, Washington, DC"
   }
 }
-```
 
 This project was created using `bun init` in bun v1.2.18. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.

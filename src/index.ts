@@ -1,5 +1,39 @@
 import { LocationClient, SearchPlaceIndexForTextCommand } from "@aws-sdk/client-location";
 
+interface StateFips {
+  name: string;
+  fips: string;
+}
+
+interface CountyFips {
+  name: string;
+  stateFips: string;
+  countyFips: string;
+}
+
+async function loadFipsData() {
+  const stateFile = await Bun.file("data/us-state-fips.json").json() as [string, string][];
+  const countyFile = await Bun.file("data/us-county-fips.json").json() as [string, string, string][];
+
+  const stateMap: Record<string, string> = {};
+  stateFile.slice(1).forEach(([name, fips]) => { // Skip header
+    stateMap[name.toUpperCase()] = fips;
+  });
+
+  const countyMap: Record<string, Record<string, string>> = {};
+countyFile.slice(1).forEach(([fullName, stateFips, countyFips]) => { // Skip header
+  const parts = fullName.split(',').map(s => s.trim());
+  if (parts.length < 1) return; // Skip invalid entries
+  const countyName = parts[0] ?? '';
+  const cleanedCounty = countyName.toUpperCase().replace(" COUNTY", "");
+  const stateKey = stateFips;
+  if (!countyMap[stateKey]) countyMap[stateKey] = {};
+  countyMap[stateKey][cleanedCounty] = countyFips;
+});
+
+  return { stateMap, countyMap };
+}
+
 export async function geocodeAddress(address: string): Promise<void> {
   const client = new LocationClient({ region: "us-west-2" });
 
@@ -12,10 +46,18 @@ export async function geocodeAddress(address: string): Promise<void> {
     const command = new SearchPlaceIndexForTextCommand(params);
     const response = await client.send(command);
 
+    const { stateMap, countyMap } = await loadFipsData();
+
     if (response.Results && response.Results.length > 0) {
       const result = response.Results[0];
       if (result?.Place) {
         const place = result.Place;
+        const state = place.Region?.toUpperCase() ?? "";
+        const county = place.SubRegion?.toUpperCase().replace(" COUNTY", "") ?? "";
+
+        const stateFips = stateMap[state] ?? "N/A";
+        const countyFips = (stateFips !== "N/A" && countyMap[stateFips]?.[county]) ?? "N/A";
+
         console.log("Resolved Address:", place.Label ?? "N/A");
         console.log("Country:", place.Country ?? "N/A");
         console.log("Region (State):", place.Region ?? "N/A");
@@ -24,9 +66,9 @@ export async function geocodeAddress(address: string): Promise<void> {
         console.log("Neighborhood:", place.Neighborhood ?? "N/A");
         console.log("Postal Code:", place.PostalCode ?? "N/A");
         console.log("Coordinates:", place.Geometry?.Point ?? "N/A");
+        console.log("State FIPS:", stateFips);
+        console.log("County FIPS:", countyFips);
 
-        // Note: FIPS codes are not directly provided by AWS Location Service.
-        // If needed, integrate with another service like US Census API for FIPS lookup based on county/state.
         console.log("Full Response:", JSON.stringify(response, null, 2));
       } else {
         console.log("No place data found in the result.");
