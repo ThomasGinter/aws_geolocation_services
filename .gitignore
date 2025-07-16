@@ -19,6 +19,9 @@ build/
 # Cline-specific
 .clinerules/memory-bank/
 
+# IDE-specific
+.cursor/
+
 # OS-specific
 .DS_Store
 Thumbs.db
