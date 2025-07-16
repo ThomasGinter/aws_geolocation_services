@@ -1,6 +1,6 @@
 # aws_geolocation_services
 
-This project provides a CLI tool for geocoding addresses using AWS Location Service, extracting details like country, state, county, and more. It is built with Bun and TypeScript.
+This project provides a web server application for geocoding addresses using AWS Location Service, extracting details like country, state, county, and more. It includes a React frontend for user interaction and is built with Bun and TypeScript.
 
 ## Prerequisites
 
@@ -11,86 +11,71 @@ This project provides a CLI tool for geocoding addresses using AWS Location Serv
 
 To install dependencies:
 
-```bash
+```sh
 bun install
 ```
 
 ## Usage
 
-Run the CLI with an address as an argument:
+Run the server in development mode:
 
-```bash
-bun run src/index.ts "1600 Pennsylvania Ave NW, Washington, DC"
+```sh
+bun --hot src/index.ts
 ```
 
-This will geocode the provided address and output resolved details along with the full AWS response.
+Access the frontend at [http://localhost:3000](http://localhost:3000) to input an address and view geocoding results.
 
-## FIPS Data
+Alternatively, interact with the API directly via the POST `/geocode` endpoint:
 
-The `data` folder contains JSON files for mapping US states and counties to their FIPS codes:
-- `us-state-fips.json`: List of US states with their FIPS codes.
-- `us-county-fips.json`: List of US counties with their state FIPS and county FIPS codes.
+```sh
+curl -X POST http://localhost:3000/geocode \
+  -H "Content-Type: application/json" \
+  -d '{"address": "1600 Pennsylvania Ave NW, Washington, DC"}'
+```
 
-These files are used to lookup and add State FIPS and County FIPS to the geocoding output based on the Region (state) and SubRegion (county) from the AWS response.
+This will return a JSON response with the geocoded details.
 
-## Sample Output
+## Project Structure
 
-Running the CLI with the address "1600 Pennsylvania Ave NW, Washington, DC" produces output like:
+- `src/index.ts`: Server entry point using `Bun.serve()`.
+- `src/services/awsclientlocation.ts`: `AwsGeocoder` class encapsulating AWS Location Service logic.
+- `src/frontend/`: React frontend files (index.html, App.tsx).
+- `test/`: Unit tests for the geocoder and server.
+- `data/`: JSON files for US state and county FIPS codes.
 
-Resolved Address: 1600 Pennsylvania Ave NW, Washington, DC, 20500, USA
-Country: USA
-Region (State): District of Columbia
-SubRegion (County): District of Columbia
-Municipality: Washington
-Neighborhood: N/A
-Postal Code: 20500
-Coordinates: [ -77.036546998209, 38.897675107651 ]
-State FIPS: 11
-County FIPS: 001
-Full Response: {
-  "$metadata": {
-    "httpStatusCode": 200,
-    "requestId": "fe27e41b-4742-4023-860b-d78054ddc93c",
-    "cfId": "nGnbDYGjueSn8zEfLFRK6GxqzFyjGz-pv4-OL7Gcrv4SiRz3J0YAlA==",
-    "attempts": 1,
-    "totalRetryDelay": 0
-  },
-  "Results": [
-    {
-      "Place": {
-        "AddressNumber": "1600",
-        "Categories": [
-          "AddressType"
-        ],
-        "Country": "USA",
-        "Geometry": {
-          "Point": [
-            -77.036546998209,
-            38.897675107651
-          ]
-        },
-        "Interpolated": false,
-        "Label": "1600 Pennsylvania Ave NW, Washington, DC, 20500, USA",
-        "Municipality": "Washington",
-        "PostalCode": "20500",
-        "Region": "District of Columbia",
-        "Street": "Pennsylvania Ave NW",
-        "SubRegion": "District of Columbia"
-      },
-      "Relevance": 1
-    }
-  ],
-  "Summary": {
-    "DataSource": "Esri",
-    "MaxResults": 50,
-    "ResultBBox": [
-      -77.036546998209,
-      38.897675107651,
-      -77.036546998209,
-      38.897675107651
-    ],
-    "Text": "1600 Pennsylvania Ave NW, Washington, DC"
-  }
+## Architecture
+
+- **Backend**: The server exposes a RESTful API at `/geocode` (POST) which uses the `AwsGeocoder` class to interact with AWS Location Service and enrich results with FIPS codes.
+- **Frontend**: A simple React app served at `/` allowing users to input addresses and display results.
+- **Data**: FIPS mappings are loaded from JSON files in `data/` and used to augment geocoding responses.
+
+## Testing
+
+Run unit tests with:
+
+```sh
+bun test
+```
+
+Tests cover the `AwsGeocoder` class and server route handlers.
+
+## Sample API Response
+
+Querying the API with the address "1600 Pennsylvania Ave NW, Washington, DC" produces a JSON response like:
+
+```json
+{
+  "label": "1600 Pennsylvania Ave NW, Washington, DC 20500, USA",
+  "country": "USA",
+  "region": "District of Columbia",
+  "subRegion": "District of Columbia",
+  "municipality": "Washington",
+  "neighborhood": "N/A",
+  "postalCode": "20500",
+  "coordinates": [-77.036546998209, 38.897675107651],
+  "stateFips": "11",
+  "countyFips": "001"
 }
+```
 
 This project was created using `bun init` in bun v1.2.18. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.

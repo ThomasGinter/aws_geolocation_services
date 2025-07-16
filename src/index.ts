@@ -1,90 +1,62 @@
-import { LocationClient, SearchPlaceIndexForTextCommand } from "@aws-sdk/client-location";
+import { AwsGeocoder } from "./services/awsclientlocation";
+import index from "./frontend/index.html";
 
-interface StateFips {
-  name: string;
-  fips: string;
-}
+const geocoder = new AwsGeocoder();
 
-interface CountyFips {
-  name: string;
-  stateFips: string;
-  countyFips: string;
-}
+console.log("Server running on http://localhost:3000");
 
-async function loadFipsData() {
-  const stateFile = await Bun.file("data/us-state-fips.json").json() as [string, string][];
-  const countyFile = await Bun.file("data/us-county-fips.json").json() as [string, string, string][];
+Bun.serve({
+  port: 3000,
+  development: {
+    hmr: true,
+    console: true,
+  },
+  routes: {
+    "/": index,
+    "/geocode": {
+      POST: async (req) => {
+        try {
+          const body = await req.json();
+          const address = body.address;
+          if (!address || typeof address !== "string") {
+            return new Response(
+              JSON.stringify({ error: "Valid address is required" }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
 
-  const stateMap: Record<string, string> = {};
-  stateFile.slice(1).forEach(([name, fips]) => { // Skip header
-    stateMap[name.toUpperCase()] = fips;
-  });
+          const result = await geocoder.geocodeAddress(address);
 
-  const countyMap: Record<string, Record<string, string>> = {};
-countyFile.slice(1).forEach(([fullName, stateFips, countyFips]) => { // Skip header
-  const parts = fullName.split(',').map(s => s.trim());
-  if (parts.length < 1) return; // Skip invalid entries
-  const countyName = parts[0] ?? '';
-  const cleanedCounty = countyName.toUpperCase().replace(" COUNTY", "");
-  const stateKey = stateFips;
-  if (!countyMap[stateKey]) countyMap[stateKey] = {};
-  countyMap[stateKey][cleanedCounty] = countyFips;
+          return new Response(JSON.stringify(result), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          console.error(error);
+          if (
+            error instanceof Error &&
+            error.message === "No results found for the address"
+          ) {
+            return new Response(
+              JSON.stringify({ error: "No results found for the address" }),
+              {
+                status: 404,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
+          return new Response(
+            JSON.stringify({ error: "Internal server error" }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+      },
+    },
+  },
 });
-
-  return { stateMap, countyMap };
-}
-
-export async function geocodeAddress(address: string): Promise<void> {
-  const client = new LocationClient({ region: "us-west-2" });
-
-  const params = {
-    IndexName: "GeoAddressIndex",
-    Text: address,
-  };
-
-  try {
-    const command = new SearchPlaceIndexForTextCommand(params);
-    const response = await client.send(command);
-
-    const { stateMap, countyMap } = await loadFipsData();
-
-    if (response.Results && response.Results.length > 0) {
-      const result = response.Results[0];
-      if (result?.Place) {
-        const place = result.Place;
-        const state = place.Region?.toUpperCase() ?? "";
-        const county = place.SubRegion?.toUpperCase().replace(" COUNTY", "") ?? "";
-
-        const stateFips = stateMap[state] ?? "N/A";
-        const countyFips = (stateFips !== "N/A" && countyMap[stateFips]?.[county]) ?? "N/A";
-
-        console.log("Resolved Address:", place.Label ?? "N/A");
-        console.log("Country:", place.Country ?? "N/A");
-        console.log("Region (State):", place.Region ?? "N/A");
-        console.log("SubRegion (County):", place.SubRegion ?? "N/A");
-        console.log("Municipality:", place.Municipality ?? "N/A");
-        console.log("Neighborhood:", place.Neighborhood ?? "N/A");
-        console.log("Postal Code:", place.PostalCode ?? "N/A");
-        console.log("Coordinates:", place.Geometry?.Point ?? "N/A");
-        console.log("State FIPS:", stateFips);
-        console.log("County FIPS:", countyFips);
-
-        console.log("Full Response:", JSON.stringify(response, null, 2));
-      } else {
-        console.log("No place data found in the result.");
-      }
-    } else {
-      console.log("No results found for the address.");
-    }
-  } catch (error) {
-    console.error("Error geocoding address:", error);
-  }
-}
-
-const address = process.argv[2];
-if (!address) {
-  console.log("Usage: bun run src/index.ts <address>");
-  process.exit(1);
-}
-
-geocodeAddress(address);
