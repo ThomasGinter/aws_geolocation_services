@@ -100,6 +100,7 @@ export class AwsGeocoder {
         IndexName: this.indexName,
         Text: partialAddress,
         MaxResults: maxResults,
+        FilterCountries: ["USA", "CAN"],
       };
       if (biasPosition) {
         params.BiasPosition = biasPosition;

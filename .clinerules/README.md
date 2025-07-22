@@ -1,0 +1,1 @@
+Refer to the project ./README.md for information about the project including structure, project code decisions, and usage instructions.  Make sure to update the README.md file as changes are made which are relevant to the information in the file.
