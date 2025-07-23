@@ -119,6 +119,7 @@ export class AwsGeocoder {
       throw error;
     }
   }
+  
   public async getPlace(placeId: string): Promise<object> {
     try {
       const { stateMap, countyMap } = await this.fipsPromise;
