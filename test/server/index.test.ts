@@ -93,6 +93,24 @@ async function simulateSuggestionsHandler(
   }
 }
 
+async function simulateMapConfigHandler(
+  geocoder: AwsGeocoder,
+): Promise<Response> {
+  try {
+    const config = geocoder.getMapConfig();
+    return new Response(JSON.stringify(config), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    console.error(error);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
 test("POST /geocode with valid address returns 200 and result", async () => {
   const geocoder = new AwsGeocoder();
   const mockGeocode = mock(async () => ({
@@ -220,4 +238,24 @@ test("GET /api/suggestions with valid partialAddress returns 200 and suggestions
   });
   expect(mockGetSuggestions).toHaveBeenCalledWith("partial", 5, undefined);
   expect(mockGetSuggestions).toHaveBeenCalledTimes(1);
+});
+
+test("GET /api/map-config returns 200 and config", async () => {
+  const geocoder = new AwsGeocoder();
+  const mockGetMapConfig = mock(() => ({
+    mapName: "GeoMap",
+    region: "us-west-2",
+    identityPoolId: "us-west-2:901dce01-7f6d-4bf0-a169-1ebdf37929a6",
+  }));
+  geocoder.getMapConfig = mockGetMapConfig;
+
+  const response = await simulateMapConfigHandler(geocoder);
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    mapName: "GeoMap",
+    region: "us-west-2",
+    identityPoolId: "us-west-2:901dce01-7f6d-4bf0-a169-1ebdf37929a6",
+  });
+  expect(mockGetMapConfig).toHaveBeenCalledTimes(1);
 });

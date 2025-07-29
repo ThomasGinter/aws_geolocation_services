@@ -139,7 +139,10 @@ export class AwsGeocoder {
           (stateFips !== "N/A" && countyMap[stateFips]?.[county]) ?? "N/A";
         return {
           label: place.Label ?? "N/A",
-          address: place.Address ?? {},
+          address: {
+            AddressNumber: place.AddressNumber ?? "",
+            Street: place.Street ?? "",
+          },
           country: place.Country ?? "N/A",
           region: place.Region ?? "N/A",
           subRegion: place.SubRegion ?? "N/A",
@@ -156,5 +159,13 @@ export class AwsGeocoder {
       console.error("Error fetching place:", error);
       throw error;
     }
+  }
+
+  public getMapConfig() {
+    return {
+      mapName: "GeoMap",
+      region: "us-west-2",
+      identityPoolId: "us-west-2:901dce01-7f6d-4bf0-a169-1ebdf37929a6",
+    };
   }
 }

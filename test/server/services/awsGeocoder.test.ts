@@ -155,3 +155,13 @@ test("getSuggestions returns empty array when no results", async () => {
   expect(mockSend).toHaveBeenCalledTimes(1);
   LocationClient.prototype.send = originalSend;
 });
+
+test("getMapConfig returns correct configuration", () => {
+  const geocoder = new AwsGeocoder();
+  const config = geocoder.getMapConfig();
+  expect(config).toEqual({
+    mapName: "GeoMap",
+    region: "us-west-2",
+    identityPoolId: "us-west-2:901dce01-7f6d-4bf0-a169-1ebdf37929a6",
+  });
+});

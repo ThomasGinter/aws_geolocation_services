@@ -1,7 +1,34 @@
-import React, { useState, useRef } from "react";
-import { createRoot } from "react-dom/client";
+import React, { useState, useRef, useEffect } from "react";
 
-function App() {
+import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
+import maplibregl from "maplibre-gl";
+
+import { withIdentityPoolId } from "@aws/amazon-location-utilities-auth-helper";
+
+interface GeocodeResult {
+  label: string;
+  country: string;
+  region: string;
+  subRegion: string;
+  municipality: string;
+  neighborhood: string;
+  postalCode: string;
+  coordinates: [number, number];
+  stateFips: string;
+  countyFips: string;
+  address?: {
+    AddressNumber?: string;
+    Street?: string;
+  };
+}
+
+interface MapConfig {
+  mapName: string;
+  region: string;
+  identityPoolId: string;
+}
+
+export default function App() {
   const [street, setStreet] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -10,9 +37,18 @@ function App() {
     { text: string; placeId: string }[]
   >([]);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<GeocodeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [mapConfig, setMapConfig] = useState<MapConfig | null>(null);
+  const [authHelper, setAuthHelper] = useState<any | null>(null);
+
+  const [viewport, setViewport] = useState({
+    latitude: 38.8977,
+    longitude: -77.0369,
+    zoom: 15,
+  });
+  const [showMap, setShowMap] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,16 +74,50 @@ function App() {
         throw new Error(errorData.error ?? "Request failed");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as GeocodeResult;
       setResult(data);
+      if (
+        data.coordinates &&
+        Array.isArray(data.coordinates) &&
+        data.coordinates.length === 2
+      ) {
+        setViewport({
+          latitude: data.coordinates[1],
+          longitude: data.coordinates[0],
+          zoom: 14,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unknown error occurred",
       );
     } finally {
       setLoading(false);
+      setShowMap(true);
     }
   };
+
+  useEffect(() => {
+    async function loadMapConfig() {
+      try {
+        const response = await fetch("/api/map-config");
+        if (!response.ok) {
+          throw new Error("Failed to fetch map config");
+        }
+        const config = await response.json();
+        setMapConfig(config);
+
+        const authHelperInstance = await withIdentityPoolId(
+          config.identityPoolId,
+        );
+        setAuthHelper(authHelperInstance);
+      } catch (error) {
+        console.error("Error loading map config:", error);
+      }
+    }
+
+    loadMapConfig();
+  }, []);
 
   const handleSuggestionSelect = async (suggestion: {
     text: string;
@@ -60,10 +130,10 @@ function App() {
         body: JSON.stringify({ placeId: suggestion.placeId }),
       });
       if (response.ok) {
-        const data = await response.json();
+        const data = (await response.json()) as GeocodeResult;
         const address = data.address || {};
         let streetAddress =
-          `${address.AddressNumber || ""} ${address.Street || ""}`.trim();
+          `${address?.AddressNumber || ""} ${address?.Street || ""}`.trim();
 
         // If address object is empty or doesn't have street info, extract from label
         if (!streetAddress && data.label) {
@@ -217,10 +287,69 @@ function App() {
           </ul>
         </div>
       )}
+      {showMap && mapConfig && authHelper && (
+        <div
+          style={{
+            height: "400px",
+            width: "100%",
+            marginTop: "20px",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <Map
+            viewState={viewport}
+            onViewStateChange={({
+              viewState,
+            }: {
+              viewState: { latitude: number; longitude: number; zoom: number };
+            }) => setViewport(viewState)}
+            style={{ width: "100%", height: "100%" }}
+            mapStyle={`https://maps.geo.${mapConfig.region}.amazonaws.com/maps/v0/maps/${mapConfig.mapName}/style-descriptor`}
+            mapLib={maplibregl}
+            {...authHelper.getMapAuthenticationOptions()}
+          >
+            {result &&
+              result.coordinates &&
+              Array.isArray(result.coordinates) &&
+              result.coordinates.length === 2 && (
+                <Marker
+                  longitude={result.coordinates[0]}
+                  latitude={result.coordinates[1]}
+                  anchor="bottom"
+                >
+                  <div
+                    style={{
+                      width: "0",
+                      height: "0",
+                      borderLeft: "10px solid transparent",
+                      borderRight: "10px solid transparent",
+                      borderTop: "20px solid #ff0000",
+                      position: "relative",
+                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
+                      zIndex: 1000,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        backgroundColor: "#ff0000",
+                        borderRadius: "50%",
+                        border: "2px solid #fff",
+                        position: "absolute",
+                        top: "-16px",
+                        left: "-6px",
+                        zIndex: 1001,
+                      }}
+                    />
+                  </div>
+                </Marker>
+              )}
+            <NavigationControl />
+          </Map>
+        </div>
+      )}
     </div>
   );
 }
-
-// Note: Cannot find name 'document'. Ensure tsconfig.json includes 'dom' in compilerOptions.lib
-const root = createRoot(document.getElementById("root")!);
-root.render(<App />);
